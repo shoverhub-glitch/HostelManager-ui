@@ -1,7 +1,7 @@
 {
   "name": "hostel-manager",
   "description": "Property management system for hostels and guest houses",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": "Hostel Manager Team",
   "license": "UNLICENSED",
   "main": "expo-router/entry",
@@ -41,7 +41,8 @@
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
     "react-native-svg": "15.12.1",
-    "react-native-worklets": "^0.7.4"
+    "react-native-worklets": "^0.7.4",
+    "react-dom": "19.1.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
