@@ -1,0 +1,29 @@
+{
+  "cli": {
+    "version": ">= 18.0.5",
+    "appVersionSource": "local"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "preview": {
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://hostel.shoverhub.com/api/v1"
+      }
+    },
+    "production": {
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://hostel.shoverhub.com/api/v1"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}
