@@ -11,6 +11,9 @@ module.exports = {
     version: packageJson.version,
     jsEngine: 'hermes',
     orientation: 'portrait',
+    optimization: {
+      bytecode: true,
+    },
     icon: './assets/images/icon-1024.png',
     splash: {
       image: './assets/images/hm-logo-v2.jpg',
@@ -19,7 +22,7 @@ module.exports = {
     },
     scheme: 'hostelmanager',
     userInterfaceStyle: 'automatic',
-    newArchEnabled: true,
+    newArchEnabled: false,
     platforms: ['android', 'ios'],
     plugins: ['expo-router', 'expo-secure-store', 'expo-font'],
     experiments: {
