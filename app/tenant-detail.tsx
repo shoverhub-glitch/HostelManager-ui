@@ -256,7 +256,12 @@ export default function TenantDetailScreen() {
     if (!tenant) return;
     setEditAutoGenerate(tenant.autoGeneratePayments === true);
     setEditAnchorDay(tenant.billingConfig?.anchorDay || 1);
-    setEditBillingStatus((tenant.billingConfig?.status as 'paid' | 'due') || 'due');
+    // If anchorDay is in the future, force status to 'due'
+    const today = new Date();
+    const anchorDay = tenant.billingConfig?.anchorDay || 1;
+    const anchorDate = new Date(today.getFullYear(), today.getMonth(), anchorDay);
+    const isFutureAnchor = anchorDate > today;
+    setEditBillingStatus(isFutureAnchor ? 'due' : ((tenant.billingConfig?.status as 'paid' | 'due') || 'due'));
     setEditPaymentMethod(tenant.billingConfig?.method || 'Cash');
     setShowEditBillingModal(true);
     billingSheet.open();
@@ -949,15 +954,23 @@ export default function TenantDetailScreen() {
                 <>
                   <View style={styles.field}>
                     <Text style={[styles.fieldLabel, { color: textPrimary }]}>Current billing status</Text>
-                    <TouchableOpacity
-                      style={[styles.picker, { backgroundColor: cardBg, borderColor: cardBorder }]}
-                      onPress={() => { setShowEditBillingStatusPicker(true); billingSheet.open(); }}
-                      activeOpacity={0.75} disabled={editLoading}>
-                      <Text style={[styles.pickerText, { color: textPrimary }]}>
-                        {editBillingStatus === 'paid' ? 'Paid — this month collected' : 'Due — this month not paid'}
-                      </Text>
-                      <ChevronDown size={18} color={textTertiary} strokeWidth={2} />
-                    </TouchableOpacity>
+                    {/* If anchorDay is in the future, show as 'due' and disable editing */}
+                    {(() => {
+                      const today = new Date();
+                      const anchorDate = new Date(today.getFullYear(), today.getMonth(), editAnchorDay);
+                      const isFutureAnchor = anchorDate > today;
+                      return (
+                        <TouchableOpacity
+                          style={[styles.picker, { backgroundColor: cardBg, borderColor: cardBorder, opacity: isFutureAnchor ? 0.6 : 1 }]}
+                          onPress={() => { if (!isFutureAnchor) { setShowEditBillingStatusPicker(true); billingSheet.open(); } }}
+                          activeOpacity={0.75} disabled={editLoading || isFutureAnchor}>
+                          <Text style={[styles.pickerText, { color: textPrimary }]}>
+                            {editBillingStatus === 'paid' ? 'Paid — this month collected' : 'Due — this month not paid'}
+                          </Text>
+                          <ChevronDown size={18} color={textTertiary} strokeWidth={2} />
+                        </TouchableOpacity>
+                      );
+                    })()}
                     <Text style={[styles.fieldHint, { color: textTertiary }]}>Used to create the first payment record correctly</Text>
                   </View>
 
