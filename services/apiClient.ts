@@ -71,6 +71,44 @@ const memoryCache = new Map<string, MemoryCacheEntry>();
 
 let refreshPromise: Promise<{ accessToken: string; user: any } | null> | null = null;
 
+/**
+ * Extract the 'exp' claim from a JWT without verifying the signature.
+ * Returns expiry timestamp in milliseconds, or null if unavailable.
+ */
+function extractJwtExp(token: string): number | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(atob(parts[1]));
+    const exp = payload.exp;
+    if (typeof exp === 'number') {
+      return exp < 1_000_000_000_000 ? exp * 1000 : exp;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Store tokens with proper expiry tracking.
+ * Access token expiry is extracted from JWT exp claim.
+ * Refresh token expiry uses the API-provided expiresAt.
+ */
+export async function storeAuthTokens(tokens: { accessToken: string; refreshToken: string; expiresAt: number }, user?: any): Promise<void> {
+  await encryptedTokenStorage.setAccessToken(tokens.accessToken);
+  await encryptedTokenStorage.setRefreshToken(tokens.refreshToken);
+  await encryptedTokenStorage.setRefreshTokenExpiry(tokens.expiresAt);
+
+  const jwtExp = extractJwtExp(tokens.accessToken);
+  if (jwtExp) {
+    await encryptedTokenStorage.setAccessTokenExpiry(jwtExp);
+  } else {
+    // Fallback: 15 minutes (matches server ACCESS_TOKEN_EXPIRE_MINUTES)
+    await encryptedTokenStorage.setAccessTokenExpiry(Date.now() + 15 * 60 * 1000);
+  }
+}
+
 function getEndpointPath(endpoint: string): string {
   const path = endpoint.split('?')[0] || '/';
   if (path.length > 1 && path.endsWith('/')) {
@@ -252,7 +290,6 @@ async function _doRefresh(): Promise<{ accessToken: string; user: any } | null> 
     
     if (!response.ok) {
       if (response.status === 401 || response.status === 403) {
-        // Token is invalid or user is deleted - clear tokens
         await encryptedTokenStorage.clearTokens();
       }
       return null;
@@ -262,9 +299,10 @@ async function _doRefresh(): Promise<{ accessToken: string; user: any } | null> 
     const data = responseData?.data;
     
     if (data?.tokens?.accessToken && data?.tokens?.refreshToken && data?.tokens?.expiresAt) {
-      await encryptedTokenStorage.setAccessToken(data.tokens.accessToken);
-      await encryptedTokenStorage.setRefreshToken(data.tokens.refreshToken);
-      await encryptedTokenStorage.setTokenExpiry(data.tokens.expiresAt);
+      await storeAuthTokens(data.tokens, data.user);
+      if (data.user) {
+        await encryptedTokenStorage.cacheUserProfile(data.user);
+      }
       return {
         accessToken: data.tokens.accessToken,
         user: data.user || null,
@@ -272,7 +310,6 @@ async function _doRefresh(): Promise<{ accessToken: string; user: any } | null> 
     }
     return null;
   } catch (error: any) {
-    // On network error, don't clear tokens - user might be offline
     return null;
   }
 }

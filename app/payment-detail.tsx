@@ -32,6 +32,7 @@ import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import useResponsiveLayout from '@/hooks/useResponsiveLayout';
 import { paymentService } from '@/services/apiClient';
 import { clearScreenCache } from '@/services/screenCache';
+import { formatDate } from '@/utils/formatDate';
 import type { Payment } from '@/services/apiTypes';
 
 // ─── Animated Toggle ──────────────────────────────────────────────────────────
@@ -212,15 +213,6 @@ export default function PaymentDetailScreen() {
     } finally {
       setUpdatingStatus(false);
     }
-  };
-
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return '—';
-    return new Date(dateStr).toLocaleDateString('en-IN', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    });
   };
 
   const isPaid = payment?.status === 'paid';

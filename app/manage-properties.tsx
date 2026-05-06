@@ -31,6 +31,7 @@ import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import useResponsiveLayout from '@/hooks/useResponsiveLayout';
 import { propertyService } from '@/services/apiClient';
 import { clearScreenCache } from '@/services/screenCache';
+import { formatDate } from '@/utils/formatDate';
 
 export default function ManagePropertiesScreen() {
   const { colors, isDark }    = useTheme();
@@ -149,7 +150,7 @@ export default function ManagePropertiesScreen() {
               const stripColor = brandColor;
 
               const createdLabel = property.createdAt
-                ? new Date(property.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })
+                ? formatDate(property.createdAt)
                 : '—';
 
               return (

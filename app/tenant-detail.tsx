@@ -50,6 +50,7 @@ import EmptyState from '@/components/EmptyState';
 import Skeleton from '@/components/Skeleton';
 import ApiErrorCard from '@/components/ApiErrorCard';
 import { cacheKeys, getScreenCache, setScreenCache, clearScreenCache } from '@/services/screenCache';
+import { formatDate } from '@/utils/formatDate';
 
 interface TenantDetailCachePayload {
   tenant: Tenant;
@@ -245,6 +246,25 @@ export default function TenantDetailScreen() {
   }, [tenantId]);
 
   // ── Billing helpers ───────────────────────────────────────────────────────
+  const getEditFirstPaymentDate = (anchorDay: number): Date => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const currentMonthAnchor = new Date(today.getFullYear(), today.getMonth(), anchorDay);
+    if (currentMonthAnchor < today) {
+      return new Date(today.getFullYear(), today.getMonth() + 1, anchorDay);
+    }
+    return currentMonthAnchor;
+  };
+
+  const getEditAnchorTiming = (anchorDay: number): 'past' | 'today' | 'future' => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const currentMonthAnchor = new Date(today.getFullYear(), today.getMonth(), anchorDay);
+    if (currentMonthAnchor < today) return 'past';
+    if (currentMonthAnchor > today) return 'future';
+    return 'today';
+  };
+
   const calculateNextBillingDate = (anchorDay: number): string => {
     const today = new Date();
     let next = new Date(today.getFullYear(), today.getMonth(), anchorDay);
@@ -339,7 +359,6 @@ export default function TenantDetailScreen() {
     router.push(`/manual-payment?tenantId=${tenantId}`);
   };
 
-  // ── Formatting helpers ────────────────────────────────────────────────────
   const getDayWithOrdinal = (day: number) => {
     const r10 = day % 10; const r100 = day % 100;
     if (r10 === 1 && r100 !== 11) return `${day}st`;
@@ -348,12 +367,9 @@ export default function TenantDetailScreen() {
     return `${day}th`;
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return '—';
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    return `${months[date.getMonth()]} ${getDayWithOrdinal(date.getDate())} ${date.getFullYear()}`;
-  };
+  const editAnchorTiming = getEditAnchorTiming(editAnchorDay);
+  const editFirstPaymentDate = getEditFirstPaymentDate(editAnchorDay);
+  const editFirstPaymentDateLabel = formatDate(editFirstPaymentDate.toISOString());
 
   const openPhoneDialer = async (rawPhone?: string) => {
     const normalized = (rawPhone || '').replace(/[^0-9+]/g, '');
@@ -998,7 +1014,12 @@ export default function TenantDetailScreen() {
                       <Text style={[styles.pickerText, { color: textPrimary }]}>📅 Day {editAnchorDay} · Every Month</Text>
                       <ChevronDown size={18} color={textTertiary} strokeWidth={2} />
                     </TouchableOpacity>
-                    <Text style={[styles.fieldHint, { color: textTertiary }]}>Same day each month</Text>
+                    <Text style={[styles.fieldHint, { color: textTertiary }]}>
+                      {editAnchorTiming === 'today'
+                        ? 'First payment will be created immediately (today).'
+                        : `First payment will be generated on ${editFirstPaymentDateLabel}.`}
+                    </Text>
+                    <Text style={[styles.fieldHint, { color: textTertiary }]}>Hint: Past day -> next month, today -> immediate, future day -> this month.</Text>
                   </View>
                 </>
               )}

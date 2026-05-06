@@ -69,10 +69,10 @@ export default function DatePicker({
     if (!dateString) return '';
     const date = new Date(dateString);
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const year = date.getFullYear();
     const month = months[date.getMonth()];
     const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    const year = date.getFullYear();
+    return `${month} ${day}, ${year}`;
   };
 
   const getDaysInMonth = (date: Date): number => {

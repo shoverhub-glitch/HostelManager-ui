@@ -33,22 +33,7 @@ const PAYMENT_STATUSES = [
 ];
 const PAYMENT_METHODS = ['Cash', 'Online', 'Bank Transfer', 'UPI', 'Cheque'];
 
-type JoinDateTiming = 'past' | 'today' | 'future';
-
-const parseDateOnly = (value: string): Date | null => {
-  if (!value) {
-    return null;
-  }
-
-  const normalized = value.slice(0, 10);
-  const parts = normalized.split('-').map(Number);
-  if (parts.length !== 3 || parts.some((part) => Number.isNaN(part))) {
-    return null;
-  }
-
-  const [year, month, day] = parts;
-  return new Date(year, month - 1, day);
-};
+type AnchorTiming = 'past' | 'today' | 'future';
 
 const getClampedDate = (year: number, monthIndex: number, day: number): Date => {
   const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
@@ -75,25 +60,7 @@ const getDaysInCurrentMonth = (): number => {
   return new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
 };
 
-const getJoinDateTiming = (joinDateValue: string): JoinDateTiming => {
-  const selectedJoinDate = parseDateOnly(joinDateValue);
-  if (!selectedJoinDate) {
-    return 'today';
-  }
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  if (selectedJoinDate < today) {
-    return 'past';
-  }
-  if (selectedJoinDate > today) {
-    return 'future';
-  }
-  return 'today';
-};
-
-const getAnchorTiming = (anchorDayValue: number): JoinDateTiming => {
+const getAnchorTiming = (anchorDayValue: number): AnchorTiming => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -108,23 +75,11 @@ const getAnchorTiming = (anchorDayValue: number): JoinDateTiming => {
   return 'today';
 };
 
-const getScheduledDueDate = (anchorDayValue: number, joinTiming: JoinDateTiming): Date => {
+const getScheduledDueDate = (anchorDayValue: number): Date => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   const currentMonthAnchor = getClampedDate(today.getFullYear(), today.getMonth(), anchorDayValue);
-
-  if (joinTiming === 'past') {
-    return getClampedDate(today.getFullYear(), today.getMonth() + 1, anchorDayValue);
-  }
-
-  if (joinTiming === 'future') {
-    if (currentMonthAnchor > today) {
-      return currentMonthAnchor;
-    }
-    return getClampedDate(today.getFullYear(), today.getMonth() + 1, anchorDayValue);
-  }
-
   if (currentMonthAnchor < today) {
     return getClampedDate(today.getFullYear(), today.getMonth() + 1, anchorDayValue);
   }
@@ -132,12 +87,13 @@ const getScheduledDueDate = (anchorDayValue: number, joinTiming: JoinDateTiming)
   return currentMonthAnchor;
 };
 
-const formatScheduleDate = (targetDate: Date): string =>
-  targetDate.toLocaleDateString('en-IN', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
+const formatScheduleDate = (targetDate: Date): string => {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const month = months[targetDate.getMonth()];
+  const day = String(targetDate.getDate()).padStart(2, '0');
+  const year = targetDate.getFullYear();
+  return `${month} ${day}, ${year}`;
+};
 
 interface TenantWithLatestPayment extends Tenant {
   latestPayment?: Payment;
@@ -176,17 +132,16 @@ export default function AddPaymentScreen() {
   const [showMethodPicker, setShowMethodPicker] = useState(false);
   // showUpgradeModal state removed
 
-  const joinDateTiming = getJoinDateTiming(joinDate);
   const anchorTiming = getAnchorTiming(anchorDay);
-  const nextScheduledDueDate = getScheduledDueDate(anchorDay, joinDateTiming);
+  const nextScheduledDueDate = getScheduledDueDate(anchorDay);
   const nextScheduledDueDateLabel = formatScheduleDate(nextScheduledDueDate);
 
-  const createPaymentImmediately = joinDateTiming !== 'future' && anchorTiming !== 'future';
+  const createPaymentImmediately = anchorTiming === 'today';
 
   useEffect(() => {
     if (joinDate) {
       // Extract day of month from joinDate
-      const joinDateObj = parseDateOnly(joinDate);
+      const joinDateObj = new Date(joinDate);
       if (joinDateObj) {
         setAnchorDay(joinDateObj.getDate());
       }
@@ -425,12 +380,34 @@ export default function AddPaymentScreen() {
                   </Text>
                   <ChevronDown size={18} color={brandColor} />
                 </TouchableOpacity>
-                <Text style={[styles.helperText, { color: textSecondary, marginTop: spacing.sm }]}>
-                  {createPaymentImmediately
-                    ? status === 'due'
-                      ? 'First payment record created immediately for this cycle.'
-                      : 'First payment created immediately. Next payment on ' + nextScheduledDueDateLabel
-                    : 'First payment will be generated on ' + nextScheduledDueDateLabel}
+                <View style={[
+                  styles.scheduleHintBox,
+                  {
+                    backgroundColor: createPaymentImmediately
+                      ? (isDark ? colors.success[900] : colors.success[50])
+                      : (isDark ? colors.primary[900] : colors.primary[50]),
+                    borderColor: createPaymentImmediately
+                      ? (isDark ? colors.success[700] : colors.success[200])
+                      : (isDark ? colors.primary[700] : colors.primary[200]),
+                  },
+                ]}>
+                  <Text style={[
+                    styles.scheduleHintText,
+                    {
+                      color: createPaymentImmediately
+                        ? (isDark ? colors.success[300] : colors.success[700])
+                        : (isDark ? colors.primary[300] : colors.primary[700]),
+                    },
+                  ]}>
+                    {createPaymentImmediately
+                      ? status === 'due'
+                        ? `First payment will be created immediately (today).`
+                        : `First payment created immediately. Next payment on ${nextScheduledDueDateLabel}.`
+                      : `First payment will be generated on ${nextScheduledDueDateLabel}.`}
+                  </Text>
+                </View>
+                <Text style={[styles.fieldHelpText, { color: textTertiary }]}>
+                  Hint: If selected day is in the past, first payment is next month. If it is today, payment is created immediately. If it is in the future, first payment is on that date this month.
                 </Text>
               </View>
             )}
@@ -820,6 +797,12 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: typography.fontFamily.regular,
     fontSize: typography.fontSize.md,
+  },
+  fieldHelpText: {
+    marginTop: spacing.sm,
+    fontFamily: typography.fontFamily.regular,
+    fontSize: typography.fontSize.xs,
+    lineHeight: 17,
   },
   toggleContainer: {
     flexDirection: 'row',

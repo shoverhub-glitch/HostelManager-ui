@@ -1,3 +1,4 @@
+import { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -5,7 +6,9 @@ import {
   ScrollView,
   TouchableOpacity,
   Switch,
+  Alert,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useRouter, type Href } from 'expo-router';
 import Constants from 'expo-constants';
 import ScreenContainer from '@/components/ScreenContainer';
@@ -20,22 +23,63 @@ import {
   HelpCircle,
   LogOut,
   ArrowUpRight,
-  CreditCard,
   Moon,
   Sun,
+  Download,
 } from 'lucide-react-native';
 import { spacing, radius } from '@/theme';
 import { typography } from '@/theme/typography';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
+import { checkForUpdates, getUpdateStatus, openPlayStore, clearUpdateFlag } from '@/services/appVersionService';
 
 export default function ProfileScreen() {
   const { colors, toggleTheme, isDark } = useTheme();
   const { logout, user }                = useAuth();
   const router                          = useRouter();
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [hasUpdate, setHasUpdate] = useState(false);
+  const [storeVersion, setStoreVersion] = useState<string | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      getUpdateStatus().then(({ updateAvailable, storeVersion }) => {
+        setHasUpdate(updateAvailable);
+        setStoreVersion(storeVersion);
+      });
+    }, [])
+  );
 
   const handleLogout = () => logout();
   const appVersion = Constants.expoConfig?.version ?? '1.0.0';
+
+  const handleCheckUpdates = async () => {
+    setCheckingUpdate(true);
+    try {
+      const result = await checkForUpdates();
+      setHasUpdate(result.updateAvailable);
+      setStoreVersion(result.storeVersion);
+      if (result.storeVersion && result.updateAvailable) {
+        Alert.alert(
+          'Update Available',
+          `Version ${result.storeVersion} is now available. Please update to get the latest features and fixes.`,
+          [
+            { text: 'Later', style: 'cancel' },
+            { text: 'Update Now', onPress: () => { clearUpdateFlag(); openPlayStore(result.storeUrl); } },
+          ]
+        );
+      } else if (result.storeVersion) {
+        clearUpdateFlag();
+        Alert.alert('You\'re up to date', `You are already on the latest version (${appVersion}).`);
+      } else {
+        Alert.alert('Could not check', 'Unable to check for updates right now. Please try again later.');
+      }
+    } catch {
+      Alert.alert('Could not check', 'Unable to check for updates. Please check your internet connection and try again.');
+    } finally {
+      setCheckingUpdate(false);
+    }
+  };
 
   // ── Color aliases ─────────────────────────────────────────────────────────
   const brandColor    = colors.primary[500];
@@ -221,7 +265,28 @@ export default function ProfileScreen() {
           <Text style={[styles.signOutText, { color: colors.danger[500] }]}>Sign out</Text>
         </TouchableOpacity>
 
-        {/* App version hint */}
+        {/* ── Check for Updates ──────────────────────────────────────────── */}
+        <TouchableOpacity
+          style={[
+            styles.checkUpdateBtn,
+            {
+              backgroundColor: cardBg,
+              borderColor: hasUpdate ? colors.danger[300] : cardBorder,
+            },
+          ]}
+          onPress={handleCheckUpdates}
+          activeOpacity={0.7}
+          disabled={checkingUpdate}>
+          <Download size={16} color={checkingUpdate ? textTertiary : hasUpdate ? colors.danger[500] : brandColor} />
+          <Text style={[
+            styles.checkUpdateText,
+            { color: checkingUpdate ? textTertiary : hasUpdate ? colors.danger[500] : brandColor },
+          ]}>
+            {checkingUpdate ? 'Checking...' : hasUpdate ? `Update Available (${storeVersion})` : 'Check for Updates'}
+          </Text>
+          {hasUpdate && <View style={[styles.badgeDot, { backgroundColor: colors.danger[500] }]} />}
+        </TouchableOpacity>
+
         <Text style={[styles.versionText, { color: textTertiary }]}>Hostel Manager · v{appVersion}</Text>
 
       </ScrollView>
@@ -428,6 +493,30 @@ const styles = StyleSheet.create({
   },
 
   // Version
+  checkUpdateBtn: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    justifyContent:  'center',
+    gap:             spacing.sm,
+    borderRadius:    radius.lg,
+    paddingVertical: spacing.md,
+    borderWidth:     1,
+    marginBottom:    spacing.md,
+    position:        'relative',
+  },
+  checkUpdateText: {
+    fontFamily:    typography.fontFamily.semiBold,
+    fontSize:      typography.fontSize.md,
+    letterSpacing: typography.letterSpacing.wide,
+  },
+  badgeDot: {
+    width:        8,
+    height:       8,
+    borderRadius: 4,
+    marginLeft:   -4,
+    marginTop:    -16,
+  },
+
   versionText: {
     fontFamily:  typography.fontFamily.regular,
     fontSize:    10,

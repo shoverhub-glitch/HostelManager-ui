@@ -13,7 +13,6 @@ import {
   ChevronLeft,
   KeyRound,
   Trash2,
-  LogOut,
   ChevronRight,
 } from 'lucide-react-native';
 import ScreenContainer from '@/components/ScreenContainer';
@@ -21,15 +20,13 @@ import Card from '@/components/Card';
 import { spacing, radius, shadows, colors,  } from '@/theme';
 import { typography ,textPresets} from '@/theme/typography';
 import { useTheme } from '@/context/ThemeContext';
-import { useAuth } from '@/context/AuthContext';
+
 import { dataCache } from '@/services/dataCache';
 import { clearScreenCache } from '@/services/screenCache';
 
 export default function PrivacySecurityScreen() {
   const { colors } = useTheme();
   const router = useRouter();
-  const { logout } = useAuth();
-
   const [clearingCache, setClearingCache] = useState(false);
 
   const handleClearCache = () => {
@@ -58,22 +55,6 @@ export default function PrivacySecurityScreen() {
     );
   };
 
-  const handleLogoutThisDevice = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout from this device?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            await logout();
-          },
-        },
-      ]
-    );
-  };
 
   return (
     <ScreenContainer edges={['top', 'bottom']}>
@@ -128,21 +109,6 @@ export default function PrivacySecurityScreen() {
                 ) : (
                   <ChevronRight size={18} color={colors.text.tertiary} />
                 )}
-              </View>
-            </Card>
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={handleLogoutThisDevice} activeOpacity={0.7}>
-            <Card style={styles.settingCard}>
-              <View style={styles.settingRow}>
-                <View style={[styles.settingIcon, { backgroundColor: `${colors.danger[500]}15` }]}>
-                  <LogOut size={18} color={colors.danger[500]} />
-                </View>
-                <View style={styles.settingContent}>
-                  <Text style={[styles.settingTitle, { color: colors.danger[500] }]}>Logout This Device</Text>
-                  <Text style={[styles.settingDescription, { color: colors.text.secondary }]}>End your current session immediately</Text>
-                </View>
-                <ChevronRight size={18} color={colors.text.tertiary} />
               </View>
             </Card>
           </TouchableOpacity>

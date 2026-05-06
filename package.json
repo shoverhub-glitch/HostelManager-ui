@@ -1,6 +1,6 @@
 {
   "name": "hostel-manager",
-  "version": "1.0.3",
+  "version": "0.0.1",
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
@@ -44,5 +44,12 @@
     "eslint-config-expo": "~55.0.0",
     "react-refresh": "^0.18.0",
     "typescript": "~5.9.2"
+  },
+  "overrides": {
+    "postcss": "^8.5.10",
+    "@xmldom/xmldom": "^0.8.13",
+    "rimraf": "^6.0.1",
+    "glob": "^13.0.0",
+    "inflight": "https://registry.npmjs.org/lru-cache/-/lru-cache-10.0.0.tgz"
   }
 }

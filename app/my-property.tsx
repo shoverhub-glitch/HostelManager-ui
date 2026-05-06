@@ -60,6 +60,15 @@ export default function MyPropertyScreen() {
     },
     {
       icon:        Users,
+      title:       'Manage Tenants',
+      description: 'View and manage your tenants',
+      color:       brandColor,
+      iconBg:      brandLight,
+      iconText:    brandText,
+      route:       '/(tabs)/tenants',
+    },
+    {
+      icon:        Users,
       title:       'Manage Staff',
       description: 'Manage your staff members',
       color:       successColor,

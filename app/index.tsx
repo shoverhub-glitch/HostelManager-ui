@@ -18,7 +18,7 @@ import { typography } from '@/theme/typography';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import useResponsiveLayout from '@/hooks/useResponsiveLayout';
-import { authService } from '@/services/apiClient';
+import { authService, storeAuthTokens } from '@/services/apiClient';
 import { encryptedTokenStorage } from '@/services/encryptedTokenStorage';
 import { deviceIdService } from '@/services/deviceId';
 
@@ -82,12 +82,8 @@ export default function LoginScreen() {
 
       if (response?.data?.tokens) {
         const deviceId = await deviceIdService.getOrCreateDeviceId();
-        await Promise.all([
-          encryptedTokenStorage.setAccessToken(response.data.tokens.accessToken),
-          encryptedTokenStorage.setRefreshToken(response.data.tokens.refreshToken),
-          encryptedTokenStorage.setTokenExpiry(response.data.tokens.expiresAt),
-          encryptedTokenStorage.setDeviceIdForTokens(deviceId),
-        ]);
+        await storeAuthTokens(response.data.tokens, response.data.user);
+        await encryptedTokenStorage.setDeviceIdForTokens(deviceId);
         login(response.data.user);
         return;
       }

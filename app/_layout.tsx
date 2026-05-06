@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { PropertyProvider } from '@/context/PropertyContext';
 import { OfflineIndicator } from '@/components/OfflineIndicator';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { setupBackgroundCheck } from '@/services/appVersionService';
 
 function RootNavigator() {
   const { isDark, colors } = useTheme();
@@ -91,6 +92,11 @@ export default function RootLayout() {
 
 function RootLayoutContent() {
   const { colors } = useTheme();
+
+  useEffect(() => {
+    const cleanup = setupBackgroundCheck();
+    return cleanup;
+  }, []);
   
   return (
     <ErrorBoundary>

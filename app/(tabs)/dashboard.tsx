@@ -38,6 +38,7 @@ import useResponsiveLayout from '@/hooks/useResponsiveLayout';
 import { paymentService, dashboardService } from '@/services/apiClient';
 import type { Payment, DashboardStats } from '@/services/apiTypes';
 import { cacheKeys, getScreenCache, setScreenCache, clearScreenCache } from '@/services/screenCache';
+import { formatDate } from '@/utils/formatDate';
 
 interface DashboardData {
   stats: DashboardStats;
@@ -287,11 +288,19 @@ export default function DashboardScreen() {
     { icon: Wrench,      label: 'Staff',       route: '/manage-staff',   color: warningIconColor, bg: warningLight },
   ];
 
+  // ── Time-based greeting ─────────────────────────────────────────────────
+  const getGreeting = (): string => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning,';
+    if (hour < 17) return 'Good afternoon,';
+    return 'Good evening,';
+  };
+
   // ── Header block ─────────────────────────────────────────────────────────
   const HeaderBlock = () => (
     <View style={styles.header}>
       <View>
-        <Text style={[styles.greeting, { color: textSecondary }]}>Good morning,</Text>
+        <Text style={[styles.greeting, { color: textSecondary }]}>{getGreeting()}</Text>
         <Text style={[styles.ownerName, { color: textPrimary }]}>
           {user?.name || 'Property Owner'}
         </Text>
@@ -556,7 +565,7 @@ export default function DashboardScreen() {
                               <Text
                                 style={[styles.dueDateText, { color: warningColor }]}
                                 numberOfLines={1}>
-                                {payment.dueDate}
+                                {formatDate(payment.dueDate)}
                               </Text>
                             </View>
                           </View>

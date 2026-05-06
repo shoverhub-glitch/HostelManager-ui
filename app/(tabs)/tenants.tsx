@@ -38,6 +38,7 @@ import useResponsiveLayout from '@/hooks/useResponsiveLayout';
 import { tenantService, bedService } from '@/services/apiClient';
 import type { Tenant, PaginatedResponse } from '@/services/apiTypes';
 import { cacheKeys, getScreenCache, setScreenCache, clearScreenCache } from '@/services/screenCache';
+import { formatDate } from '@/utils/formatDate';
 
 const TENANTS_CACHE_STALE_MS   = 30 * 1000;
 const MAX_ERROR_MESSAGE_LENGTH = 220;
@@ -581,7 +582,7 @@ export default function TenantsScreen() {
                         <View style={[styles.metaDivider, { backgroundColor: colors.border.light }]} />
                         <View style={styles.metaPill}>
                           <Text style={[styles.metaLabel, { color: textTertiary }]}>SINCE</Text>
-                          <Text style={[styles.metaValue, { color: textPrimary }]}>{tenant.joinDate}</Text>
+                          <Text style={[styles.metaValue, { color: textPrimary }]}>{formatDate(tenant.joinDate)}</Text>
                         </View>
                         <ArrowRight size={14} color={textTertiary} strokeWidth={1.5} style={styles.cardArrow} />
                       </View>

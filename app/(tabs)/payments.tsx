@@ -38,6 +38,7 @@ import useResponsiveLayout from '@/hooks/useResponsiveLayout';
 import { paymentService } from '@/services/apiClient';
 import type { Payment, PaginatedResponse } from '@/services/apiTypes';
 import { cacheKeys, getScreenCache, setScreenCache, clearScreenCache } from '@/services/screenCache';
+import { formatDate } from '@/utils/formatDate';
 
 const PAYMENTS_CACHE_STALE_MS  = 30 * 1000;
 const PAYMENTS_PAGE_SIZE       = 50;
@@ -521,8 +522,8 @@ export default function PaymentsScreen() {
                           <Calendar size={11} color={textTertiary} strokeWidth={1.5} />
                           <Text style={[styles.metaText, { color: textSecondary }]}>
                             {isPaid
-                              ? (payment.paidDate || payment.dueDate || '—')
-                              : (payment.dueDate || '—')}
+                              ? formatDate(payment.paidDate || payment.dueDate || '')
+                              : formatDate(payment.dueDate || '')}
                           </Text>
                         </View>
                         {payment.method && (

@@ -25,22 +25,19 @@ const MIN_REFRESH_INTERVAL = 10 * 1000;
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Owner | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [loading, setLoading] = useState(true); // Start as true to prevent race condition during auth restore
+  const [loading, setLoading] = useState(true);
   const appStateRef = useRef<AppStateStatus>('active');
   const tokenRefreshTimerRef = useRef<NodeJS.Timeout | number | null>(null);
 
-  // Initialize auth on app startup
   useEffect(() => {
     initializeAuth();
   }, []);
 
-  // Handle app state changes (foreground/background)
   useEffect(() => {
     const subscription = AppState.addEventListener('change', handleAppStateChange);
     return () => subscription.remove();
   }, [isAuthenticated]);
 
-  // Set up periodic token refresh
   useEffect(() => {
     if (isAuthenticated) {
       scheduleTokenRefresh();
@@ -54,12 +51,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const initializeAuth = async () => {
     try {
-      // Get or create device ID
       const deviceId = await deviceIdService.getOrCreateDeviceId();
-      
       const token = await encryptedTokenStorage.getAccessToken();
       const refreshToken = await encryptedTokenStorage.getRefreshToken();
-      const isValid = await encryptedTokenStorage.isTokenValid();
 
       if (!token || !refreshToken) {
         setIsAuthenticated(false);
@@ -68,63 +62,73 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Optimistically set authenticated if we have tokens to avoid UI flicker
-      if (isValid) {
+      // Restore cached user profile for instant greeting display
+      const cachedUser = await encryptedTokenStorage.getCachedUserProfile();
+      if (cachedUser) {
+        setUser(cachedUser);
+      }
+
+      const isAccessTokenValid = await encryptedTokenStorage.isTokenValid();
+
+      if (isAccessTokenValid) {
+        // Access token is valid — show dashboard immediately, fetch fresh user in background
         setIsAuthenticated(true);
         setLoading(false);
-        
-        // Fetch user data in background
+
         try {
           const response = await authService.getCurrentUser();
           setUser(response.data);
-          // Schedule the next refresh now that we're authenticated
+          await encryptedTokenStorage.cacheUserProfile(response.data);
           scheduleTokenRefresh();
         } catch (error: any) {
           if (error?.code === 'UNAUTHORIZED' || error?.details?.status === 401) {
-            // Token invalid on server, clear it
             await encryptedTokenStorage.clearTokens();
             setIsAuthenticated(false);
             setUser(null);
-          } else if (error?.code === 'NETWORK_ERROR') {
-            // Network error - stay logged in, we have tokens
-            // Schedule refresh for when network is available
-            scheduleTokenRefresh();
+            setLoading(false);
           } else {
-            // Other error - stay logged in
+            // Network or other error — stay logged in with cached/stale user
             scheduleTokenRefresh();
           }
         }
-      } else if (refreshToken) {
-        // Token expired but we have refresh token, try to refresh
+      } else {
+        // Access token expired — refresh before showing dashboard
         const refreshed = await refreshAccessToken();
         if (refreshed) {
           setIsAuthenticated(true);
-          setLoading(false);
-          
-          try {
-            const response = await authService.getCurrentUser();
-            setUser(response.data);
-            scheduleTokenRefresh();
-          } catch (error: any) {
-            // Refresh succeeded but couldn't get user - stay logged in
-            scheduleTokenRefresh();
+          if (refreshed.user) {
+            setUser(refreshed.user);
+            await encryptedTokenStorage.cacheUserProfile(refreshed.user);
           }
+          setLoading(false);
+          scheduleTokenRefresh();
         } else {
-          await encryptedTokenStorage.clearTokens();
-          setIsAuthenticated(false);
-          setUser(null);
+          // Refresh failed — check if refresh token still exists (transient failure vs revoked)
+          const remainingRefreshToken = await encryptedTokenStorage.getRefreshToken();
+          if (!remainingRefreshToken) {
+            // Refresh token revoked or expired — log out
+            await encryptedTokenStorage.clearTokens();
+            setIsAuthenticated(false);
+            setUser(null);
+          } else {
+            // Transient failure — show dashboard with cached user, retry later
+            if (cachedUser) {
+              setIsAuthenticated(true);
+              scheduleTokenRefresh();
+            } else {
+              await encryptedTokenStorage.clearTokens();
+              setIsAuthenticated(false);
+              setUser(null);
+            }
+          }
           setLoading(false);
         }
-      } else {
-        await encryptedTokenStorage.clearTokens();
-        setIsAuthenticated(false);
-        setUser(null);
-        setLoading(false);
       }
     } catch (error) {
-      // On unexpected errors, check if we have tokens
       const token = await encryptedTokenStorage.getAccessToken();
       if (token) {
+        const cachedUser = await encryptedTokenStorage.getCachedUserProfile();
+        if (cachedUser) setUser(cachedUser);
         setIsAuthenticated(true);
       } else {
         setIsAuthenticated(false);
@@ -136,24 +140,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const scheduleTokenRefresh = async () => {
     try {
-      const expiry = await encryptedTokenStorage.getTokenExpiry();
+      const expiry = await encryptedTokenStorage.getAccessTokenExpiry();
       if (!expiry) return;
 
       const timeUntilExpiry = expiry - Date.now();
       
-      // If token is already expired, don't schedule refresh
       if (timeUntilExpiry <= 0) {
         return;
       }
 
       let refreshTime = Math.max(MIN_REFRESH_INTERVAL, timeUntilExpiry - TOKEN_REFRESH_BUFFER);
       
-      // If refresh time is unreasonably short, use a fallback interval
       if (refreshTime < MIN_REFRESH_INTERVAL) {
         refreshTime = MIN_REFRESH_INTERVAL;
       }
 
-      // Clear any existing timer
       if (tokenRefreshTimerRef.current) {
         clearTimeout(tokenRefreshTimerRef.current);
       }
@@ -161,19 +162,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       tokenRefreshTimerRef.current = setTimeout(async () => {
         const result = await refreshAccessToken();
         if (result) {
-          if (result.user) setUser(result.user);
-          scheduleTokenRefresh(); // Reschedule for next refresh
+          if (result.user) {
+            setUser(result.user);
+            await encryptedTokenStorage.cacheUserProfile(result.user);
+          }
+          scheduleTokenRefresh();
         } else {
-          // _doRefresh already called clearTokens() if the server returned 401/403.
-          // For transient failures (network/server error), the refresh token is still
-          // present — don't log out; just reschedule and let reactive refresh handle it.
           const remainingRefreshToken = await encryptedTokenStorage.getRefreshToken();
           if (!remainingRefreshToken) {
-            // Refresh token revoked — log out.
             setIsAuthenticated(false);
             setUser(null);
           } else {
-            // Transient failure — retry in 30 s.
             tokenRefreshTimerRef.current = setTimeout(() => scheduleTokenRefresh(), 30_000);
           }
         }
@@ -187,17 +186,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const prevAppState = appStateRef.current;
     appStateRef.current = nextAppState;
 
-    // App came to foreground - check if token needs refresh
     if (prevAppState === 'background' && nextAppState === 'active') {
       if (isAuthenticated) {
         const isValid = await encryptedTokenStorage.isTokenValid();
         if (!isValid) {
           const result = await refreshAccessToken();
           if (result) {
-            if (result.user) setUser(result.user);
+            if (result.user) {
+              setUser(result.user);
+              await encryptedTokenStorage.cacheUserProfile(result.user);
+            }
             scheduleTokenRefresh();
           } else {
-            // Same guard: only log out if refresh token was revoked.
             const remainingRefreshToken = await encryptedTokenStorage.getRefreshToken();
             if (!remainingRefreshToken) {
               setIsAuthenticated(false);
@@ -215,7 +215,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearScreenCache();
     setUser(userData);
     setIsAuthenticated(true);
-    // Schedule token refresh now that we're authenticated
+    encryptedTokenStorage.cacheUserProfile(userData);
     scheduleTokenRefresh();
   };
 

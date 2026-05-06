@@ -25,6 +25,7 @@ import type { Payment } from '@/services/apiTypes';
 import ApiErrorCard from '@/components/ApiErrorCard';
 import DatePicker from '@/components/DatePicker';
 import { cacheKeys, clearScreenCache, getScreenCache, setScreenCache } from '@/services/screenCache';
+import { formatDate } from '@/utils/formatDate';
 
 const PAYMENT_STATUSES = [
   { value: 'paid', label: 'Paid' },
@@ -410,7 +411,7 @@ export default function EditPaymentScreen() {
                   <View style={styles.toggleTextContainer}>
                     <Text style={[styles.fieldLabel, { color: textSecondary, marginBottom: 0 }]}>Edit Paid Date</Text>
                     <Text style={[styles.toggleHint, { color: textSecondary }]}>
-                      {paidDate ? `Current: ${new Date(paidDate).toLocaleDateString('en-IN')}` : 'No date set'}
+                      {paidDate ? `Current: ${formatDate(paidDate)}` : 'No date set'}
                     </Text>
                   </View>
                   <Switch
@@ -441,7 +442,7 @@ export default function EditPaymentScreen() {
                   <View style={styles.toggleTextContainer}>
                     <Text style={[styles.fieldLabel, { color: textSecondary, marginBottom: 0 }]}>Edit Due Date</Text>
                     <Text style={[styles.toggleHint, { color: textSecondary }]}>
-                      {dueDate ? `Current: ${new Date(dueDate).toLocaleDateString('en-IN')}` : 'No date set'}
+                      {dueDate ? `Current: ${formatDate(dueDate)}` : 'No date set'}
                     </Text>
                   </View>
                   <Switch

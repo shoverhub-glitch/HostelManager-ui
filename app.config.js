@@ -23,7 +23,7 @@ module.exports = {
     scheme: 'hostelmanager',
     userInterfaceStyle: 'automatic',
     newArchEnabled: false,
-    platforms: ['android', 'ios'],
+    platforms: ['android'],
     plugins: ['expo-router', 'expo-secure-store', 'expo-font'],
     experiments: {
       typedRoutes: true,

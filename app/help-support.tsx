@@ -32,19 +32,43 @@ export default function HelpSupportScreen() {
   const faqs = [
     {
       question: 'How do I add a new property?',
-      answer: 'Go to Manage Properties and tap the + button to add a new property. Fill in the required details like name, address, and capacity.',
+      answer: 'Open Manage Properties and tap the + button. Enter property name, address, and other required details, then save.',
     },
     {
       question: 'How do I manage tenant information?',
-      answer: 'Navigate to your property and select the Tenants tab. You can add, edit, or remove tenants from there.',
+      answer: 'Use the Tenants tab to add, edit, and remove tenants. Open a tenant to update billing, room, bed, and contact details.',
     },
     {
       question: 'How does billing work?',
-      answer: 'You can generate invoices and track payments for each tenant.',
+      answer: 'For auto-generate tenants, monthly payments are created by billing day. You can also record manual payments and track paid and due status.',
+    },
+    {
+      question: 'How is the first payment date decided?',
+      answer: 'If selected billing day is in the past, first payment is next month. If it is today, payment is created immediately. If it is in the future, first payment is on that date this month.',
+    },
+    {
+      question: 'Can I edit billing day later?',
+      answer: 'Yes. Open Tenant Details and edit billing settings. Changes affect upcoming payment behavior and future due records.',
+    },
+    {
+      question: 'What happens if a month has fewer days?',
+      answer: 'Billing day is adjusted to the last valid day of that month (for example, day 31 becomes day 30 or 28/29 depending on month).',
+    },
+    {
+      question: 'How do I move a tenant to another bed?',
+      answer: 'Open Tenant Details, edit tenant information, choose the new room and available bed, then save. Bed occupancy updates automatically.',
+    },
+    {
+      question: 'How do I handle tenants without auto-generated billing?',
+      answer: 'Turn off auto-generate in tenant billing settings, then use Manual Payment to create due or paid records as needed.',
     },
     {
       question: 'Can I use the app offline?',
       answer: 'Yes, the app caches your data for offline access. Changes sync automatically when you reconnect to the internet.',
+    },
+    {
+      question: 'Why is my change not visible immediately?',
+      answer: 'Some screens use cached data for speed. Pull to refresh the screen after creating or editing records to fetch the latest data.',
     },
   ];
 
@@ -97,7 +121,6 @@ export default function HelpSupportScreen() {
                   <HelpCircle size={16} color={isDark ? colors.warning[300] : colors.warning[600]} />
                 </View>
                 <Text style={[styles.faqQuestion, { color: colors.text.primary }]}>{faq.question}</Text>
-                <ChevronRight size={16} color={colors.text.tertiary} />
               </View>
               <Text style={[styles.faqAnswer, { color: colors.text.secondary }]}>{faq.answer}</Text>
             </Card>

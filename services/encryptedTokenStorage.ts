@@ -4,7 +4,9 @@ import { Platform } from 'react-native';
 
 const ACCESS_TOKEN_KEY = '@hostel_manager:access_token';
 const REFRESH_TOKEN_KEY = '@hostel_manager:refresh_token';
-const TOKEN_EXPIRY_KEY = '@hostel_manager:token_expiry';
+const ACCESS_TOKEN_EXPIRY_KEY = '@hostel_manager:access_token_expiry';
+const REFRESH_TOKEN_EXPIRY_KEY = '@hostel_manager:refresh_token_expiry';
+const USER_PROFILE_KEY = '@hostel_manager:user_profile';
 const DEVICE_ID_KEY = '@hostel_manager:device_id_token';
 const SECURE_STORE_OPTIONS: SecureStore.SecureStoreOptions = {
   keychainService: 'hostel_manager_auth',
@@ -83,7 +85,6 @@ export const encryptedTokenStorage = {
 
   /**
    * Store refresh token securely
-   * CRITICAL: This token grants long-term access. Must be encrypted in production.
    */
   async setRefreshToken(token: string): Promise<void> {
     try {
@@ -107,43 +108,72 @@ export const encryptedTokenStorage = {
   },
 
   /**
-   * Store token expiry timestamp
+   * Store access token expiry timestamp (extracted from JWT exp claim)
    */
-  async setTokenExpiry(expiresAt: number): Promise<void> {
+  async setAccessTokenExpiry(expiresAt: number): Promise<void> {
     try {
       const normalized = normalizeExpiryToMs(expiresAt);
-      await secureSetItem(TOKEN_EXPIRY_KEY, normalized.toString());
+      await AsyncStorage.setItem(ACCESS_TOKEN_EXPIRY_KEY, normalized.toString());
     } catch (error) {
-      console.error('Failed to store token expiry:', error);
-      throw error;
+      console.error('Failed to store access token expiry:', error);
     }
   },
 
   /**
-   * Retrieve token expiry timestamp
+   * Retrieve access token expiry timestamp
    */
-  async getTokenExpiry(): Promise<number | null> {
+  async getAccessTokenExpiry(): Promise<number | null> {
     try {
-      const expiry = await secureGetItem(TOKEN_EXPIRY_KEY);
-      if (!expiry) {
-        return null;
-      }
-
+      const expiry = await AsyncStorage.getItem(ACCESS_TOKEN_EXPIRY_KEY);
+      if (!expiry) return null;
       const parsed = parseInt(expiry, 10);
-      if (!Number.isFinite(parsed)) {
-        return null;
-      }
-
-      const normalized = normalizeExpiryToMs(parsed);
-      if (normalized !== parsed) {
-        await secureSetItem(TOKEN_EXPIRY_KEY, normalized.toString());
-      }
-
-      return normalized;
+      return Number.isFinite(parsed) ? parsed : null;
     } catch (error) {
-      console.error('Failed to retrieve token expiry:', error);
       return null;
     }
+  },
+
+  /**
+   * Store refresh token expiry timestamp (from API expiresAt field)
+   */
+  async setRefreshTokenExpiry(expiresAt: number): Promise<void> {
+    try {
+      const normalized = normalizeExpiryToMs(expiresAt);
+      await AsyncStorage.setItem(REFRESH_TOKEN_EXPIRY_KEY, normalized.toString());
+    } catch (error) {
+      console.error('Failed to store refresh token expiry:', error);
+    }
+  },
+
+  /**
+   * Retrieve refresh token expiry timestamp
+   */
+  async getRefreshTokenExpiry(): Promise<number | null> {
+    try {
+      const expiry = await AsyncStorage.getItem(REFRESH_TOKEN_EXPIRY_KEY);
+      if (!expiry) return null;
+      const parsed = parseInt(expiry, 10);
+      return Number.isFinite(parsed) ? normalizeExpiryToMs(parsed) : null;
+    } catch (error) {
+      return null;
+    }
+  },
+
+  /**
+   * Store token expiry timestamp (legacy — writes to both access and refresh expiry for backward compat)
+   */
+  async setTokenExpiry(expiresAt: number): Promise<void> {
+    await Promise.all([
+      this.setAccessTokenExpiry(expiresAt),
+      this.setRefreshTokenExpiry(expiresAt),
+    ]);
+  },
+
+  /**
+   * Retrieve token expiry timestamp (legacy — returns access token expiry)
+   */
+  async getTokenExpiry(): Promise<number | null> {
+    return this.getAccessTokenExpiry();
   },
 
   /**
@@ -172,15 +202,40 @@ export const encryptedTokenStorage = {
   },
 
   /**
-   * Clear all tokens immediately
-   * Called on logout or when tokens are compromised
+   * Cache user profile for instant display on app resume
+   */
+  async cacheUserProfile(user: any): Promise<void> {
+    try {
+      await AsyncStorage.setItem(USER_PROFILE_KEY, JSON.stringify(user));
+    } catch (error) {
+      console.error('Failed to cache user profile:', error);
+    }
+  },
+
+  /**
+   * Retrieve cached user profile
+   */
+  async getCachedUserProfile(): Promise<any | null> {
+    try {
+      const raw = await AsyncStorage.getItem(USER_PROFILE_KEY);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch (error) {
+      return null;
+    }
+  },
+
+  /**
+   * Clear all tokens and cached user data immediately
    */
   async clearTokens(): Promise<void> {
     try {
       await Promise.all([
         secureRemoveItem(ACCESS_TOKEN_KEY),
         secureRemoveItem(REFRESH_TOKEN_KEY),
-        secureRemoveItem(TOKEN_EXPIRY_KEY),
+        AsyncStorage.removeItem(ACCESS_TOKEN_EXPIRY_KEY),
+        AsyncStorage.removeItem(REFRESH_TOKEN_EXPIRY_KEY),
+        AsyncStorage.removeItem(USER_PROFILE_KEY),
         secureRemoveItem(DEVICE_ID_KEY),
       ]);
     } catch (error) {
@@ -190,11 +245,12 @@ export const encryptedTokenStorage = {
   },
 
   /**
-   * Check if token is still valid (not expired)
+   * Check if access token is still valid (not expired)
+   * Uses access token expiry (15 min), NOT refresh token expiry (30 days)
    */
   async isTokenValid(): Promise<boolean> {
     try {
-      const expiry = await this.getTokenExpiry();
+      const expiry = await this.getAccessTokenExpiry();
       if (!expiry) return false;
       // Add 10-second buffer to account for clock skew
       return Date.now() < (expiry - 10000);
