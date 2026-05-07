@@ -35,9 +35,14 @@ const PAYMENT_METHODS = ['Cash', 'Online', 'Bank Transfer', 'UPI', 'Cheque'];
 
 type AnchorTiming = 'past' | 'today' | 'future';
 
+const getUtcToday = (): Date => {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+};
+
 const getClampedDate = (year: number, monthIndex: number, day: number): Date => {
-  const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
-  return new Date(year, monthIndex, Math.min(day, daysInMonth));
+  const daysInMonth = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(year, monthIndex, Math.min(day, daysInMonth)));
 };
 
 const formatMonthShort = (monthIndex: number): string => {
@@ -46,25 +51,24 @@ const formatMonthShort = (monthIndex: number): string => {
 };
 
 const getAnchorDayLabel = (day: number): { label: string; isClamped: boolean } => {
-  const today = new Date();
-  const clampedDate = getClampedDate(today.getFullYear(), today.getMonth(), day);
-  const isClamped = clampedDate.getDate() !== day;
+  const today = getUtcToday();
+  const clampedDate = getClampedDate(today.getUTCFullYear(), today.getUTCMonth(), day);
+  const isClamped = clampedDate.getUTCDate() !== day;
   return {
-    label: isClamped ? `Day ${day} → ${clampedDate.getDate()} ${formatMonthShort(today.getMonth())}` : `Day ${day}`,
+    label: isClamped ? `Day ${day} -> ${clampedDate.getUTCDate()} ${formatMonthShort(today.getUTCMonth())}` : `Day ${day}`,
     isClamped,
   };
 };
 
 const getDaysInCurrentMonth = (): number => {
-  const today = new Date();
-  return new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+  const today = getUtcToday();
+  return new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 0)).getUTCDate();
 };
 
 const getAnchorTiming = (anchorDayValue: number): AnchorTiming => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = getUtcToday();
 
-  const currentMonthAnchor = getClampedDate(today.getFullYear(), today.getMonth(), anchorDayValue);
+  const currentMonthAnchor = getClampedDate(today.getUTCFullYear(), today.getUTCMonth(), anchorDayValue);
 
   if (currentMonthAnchor < today) {
     return 'past';
@@ -76,22 +80,26 @@ const getAnchorTiming = (anchorDayValue: number): AnchorTiming => {
 };
 
 const getScheduledDueDate = (anchorDayValue: number): Date => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = getUtcToday();
 
-  const currentMonthAnchor = getClampedDate(today.getFullYear(), today.getMonth(), anchorDayValue);
+  const currentMonthAnchor = getClampedDate(today.getUTCFullYear(), today.getUTCMonth(), anchorDayValue);
   if (currentMonthAnchor < today) {
-    return getClampedDate(today.getFullYear(), today.getMonth() + 1, anchorDayValue);
+    return getClampedDate(today.getUTCFullYear(), today.getUTCMonth() + 1, anchorDayValue);
   }
 
   return currentMonthAnchor;
 };
 
+const getNextCycleDueDate = (anchorDayValue: number): Date => {
+  const today = getUtcToday();
+  return getClampedDate(today.getUTCFullYear(), today.getUTCMonth() + 1, anchorDayValue);
+};
+
 const formatScheduleDate = (targetDate: Date): string => {
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const month = months[targetDate.getMonth()];
-  const day = String(targetDate.getDate()).padStart(2, '0');
-  const year = targetDate.getFullYear();
+  const month = months[targetDate.getUTCMonth()];
+  const day = String(targetDate.getUTCDate()).padStart(2, '0');
+  const year = targetDate.getUTCFullYear();
   return `${month} ${day}, ${year}`;
 };
 
@@ -120,7 +128,7 @@ export default function AddPaymentScreen() {
   const [status, setStatus] = useState<'paid' | 'due'>('paid');
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   function getTodayDay() {
-    return new Date().getDate();
+    return new Date().getUTCDate();
   }
   const [anchorDay, setAnchorDay] = useState<number>(getTodayDay());
   const [autoGeneratePayments, setAutoGeneratePayments] = useState(true);
@@ -134,19 +142,28 @@ export default function AddPaymentScreen() {
 
   const anchorTiming = getAnchorTiming(anchorDay);
   const nextScheduledDueDate = getScheduledDueDate(anchorDay);
+  const nextCycleDueDate = getNextCycleDueDate(anchorDay);
   const nextScheduledDueDateLabel = formatScheduleDate(nextScheduledDueDate);
+  const nextCycleDueDateLabel = formatScheduleDate(nextCycleDueDate);
 
   const createPaymentImmediately = anchorTiming === 'today';
+  const canConfigureImmediatePayment = autoGeneratePayments && createPaymentImmediately;
 
   useEffect(() => {
     if (joinDate) {
       // Extract day of month from joinDate
       const joinDateObj = new Date(joinDate);
       if (joinDateObj) {
-        setAnchorDay(joinDateObj.getDate());
+        setAnchorDay(joinDateObj.getUTCDate());
       }
     }
   }, [joinDate]);
+
+  useEffect(() => {
+    if (!createPaymentImmediately && status !== 'due') {
+      setStatus('due');
+    }
+  }, [createPaymentImmediately, status]);
 
   const handleStatusChange = (newStatus: 'paid' | 'due') => {
     if (newStatus === 'paid' || newStatus === 'due') {
@@ -191,11 +208,12 @@ export default function AddPaymentScreen() {
       };
       // Only include billingConfig if auto-generating payments
       if (autoGeneratePayments) {
+        const effectiveStatus: 'paid' | 'due' = createPaymentImmediately ? status : 'due';
         tenantPayload.billingConfig = {
-          status: status,
+          status: effectiveStatus,
           billingCycle: 'monthly',
           anchorDay: anchorDay,
-          ...(status === 'paid' && { method: paymentMethod }),
+          ...(effectiveStatus === 'paid' && { method: paymentMethod }),
         };
       }
       await tenantService.createTenant(tenantPayload);
@@ -222,11 +240,10 @@ export default function AddPaymentScreen() {
       joinDate && 
       roomId && 
       bedId && 
-      status && 
       !isNaN(parseFloat(rent)) && 
       parseFloat(rent) > 0;
 
-    const isPaymentMethodValid = !autoGeneratePayments || status !== 'paid' || !!paymentMethod;
+    const isPaymentMethodValid = !canConfigureImmediatePayment || status !== 'paid' || !!paymentMethod;
     return baseValid && isPaymentMethodValid;
   };
 
@@ -318,27 +335,38 @@ export default function AddPaymentScreen() {
                 <Text style={[styles.errorText, { color: isDark ? colors.danger[300] : colors.danger[700] }]}>{error}</Text>
               </View>
             )}
-            <View style={styles.inputContainer}>
-              <Text style={[styles.fieldLabel, { color: textSecondary }]}>Status *</Text>
-              <TouchableOpacity
-                style={[
-                  styles.pickerButton,
-                  {
-                    backgroundColor: !autoGeneratePayments ? colors.neutral[700] : colors.background.primary,
-                    borderColor: !autoGeneratePayments ? colors.border.dark : cardBorder,
-                  },
-                ]}
-                onPress={() => setShowStatusPicker(true)}
-                activeOpacity={0.7}
-                disabled={loading || !autoGeneratePayments}>
-                <Text style={[styles.pickerButtonText, { color: !autoGeneratePayments ? textTertiary : textPrimary }]}>
-                  {status === 'paid' ? 'Paid' : 'Due'}
-                </Text>
-                <ChevronDown size={18} color={!autoGeneratePayments ? textTertiary : brandColor} />
-              </TouchableOpacity>
-            </View>
+            {autoGeneratePayments && (
+              <View style={styles.inputContainer}>
+                <Text style={[styles.fieldLabel, { color: textSecondary }]}>Status *</Text>
+                <TouchableOpacity
+                  style={[
+                    styles.pickerButton,
+                    {
+                      backgroundColor: canConfigureImmediatePayment ? colors.background.primary : colors.neutral[700],
+                      borderColor: cardBorder,
+                    },
+                  ]}
+                  onPress={() => {
+                    if (canConfigureImmediatePayment) {
+                      setShowStatusPicker(true);
+                    }
+                  }}
+                  activeOpacity={0.7}
+                  disabled={loading || !canConfigureImmediatePayment}>
+                  <Text style={[styles.pickerButtonText, { color: canConfigureImmediatePayment ? textPrimary : textTertiary }]}>
+                    {canConfigureImmediatePayment ? (status === 'paid' ? 'Paid' : 'Due') : 'Due (Auto)'}
+                  </Text>
+                  <ChevronDown size={18} color={canConfigureImmediatePayment ? brandColor : textTertiary} />
+                </TouchableOpacity>
+                {!canConfigureImmediatePayment && (
+                  <Text style={[styles.fieldHelpText, { color: textTertiary }]}>
+                    Status is locked to Due for non-today due dates.
+                  </Text>
+                )}
+              </View>
+            )}
 
-            {autoGeneratePayments && status === 'paid' && (
+            {canConfigureImmediatePayment && status === 'paid' && (
               <View style={styles.inputContainer}>
                 <Text style={[styles.fieldLabel, { color: textSecondary }]}>Payment Method *</Text>
                 <TouchableOpacity
@@ -402,8 +430,8 @@ export default function AddPaymentScreen() {
                     {createPaymentImmediately
                       ? status === 'due'
                         ? `First payment will be created immediately (today).`
-                        : `First payment created immediately. Next payment on ${nextScheduledDueDateLabel}.`
-                      : `First payment will be generated on ${nextScheduledDueDateLabel}.`}
+                        : `First payment created immediately. Next payment on ${nextCycleDueDateLabel}.`
+                      : `First payment will be generated on ${nextScheduledDueDateLabel} with status Due.`}
                   </Text>
                 </View>
                 <Text style={[styles.fieldHelpText, { color: textTertiary }]}>
